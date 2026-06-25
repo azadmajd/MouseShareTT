@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <title>MouseShareTT Layout</title>
+    <style>
+        #canvas {
+            width: 800px;
+            height: 600px;
+            border: 1px solid black;
+            position: relative;
+            background-color: #f0f0f0;
+        }
+        .screen {
+            width: 150px;
+            height: 100px;
+            border: 2px solid blue;
+            background-color: white;
+            position: absolute;
+            cursor: move;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            user-select: none;
+        }
+        .screen.master {
+            border-color: red;
+        }
+    </style>
+</head>
+<body>
+    <h1>Screen Layout Configuration</h1>
+    <div id="canvas">
+        <div id="master" class="screen master" style="left: 325px; top: 250px;">Master (Center)</div>
+    </div>
+    <div id="controls">
+        <button onclick="saveLayout()">Save Layout</button>
+        <button onclick="refreshWorkers()">Refresh Workers</button>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/sockjs-client/1.5.1/sockjs.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/stomp.js/2.3.3/stomp.min.js"></script>
+    <script>
+        const canvas = document.getElementById('canvas');
+        let activeScreen = null;
+        let offset = { x: 0, y: 0 };
+
+        function makeDraggable(screen) {
+            if (screen.id === 'master') return;
+            screen.addEventListener('mousedown', (e) => {
+                activeScreen = screen;
+                offset.x = e.clientX - screen.offsetLeft;
+                offset.y = e.clientY - screen.offsetTop;
+            });
+        }
+
+        async function refreshWorkers() {
+            const response = await fetch('/api/workers');
+            const workers = await response.json();
+            
+            // Remove old workers except master
+            const screens = document.querySelectorAll('.screen');
+            screens.forEach(s => {
+                if (s.id !== 'master') s.remove();
+            });
+
+            workers.forEach((worker, index) => {
+                const div = document.createElement('div');
+                div.id = worker.id;
+                div.className = 'screen';
+                div.innerText = `${worker.hostname}\n(${worker.ip})`;
+                div.style.left = (500 + (index * 20)) + 'px';
+                div.style.top = (250 + (index * 20)) + 'px';
+                canvas.appendChild(div);
+                makeDraggable(div);
+            });
+        }
+
+        // Initialize master as draggable-capable (though logic skips it)
+        document.querySelectorAll('.screen').forEach(makeDraggable);
+        
+        // Auto refresh workers every 5 seconds
+        setInterval(refreshWorkers, 5000);
+        refreshWorkers();
+
+        document.addEventListener('mousemove', (e) => {
+            if (activeScreen) {
+                activeScreen.style.left = (e.clientX - offset.x) + 'px';
+                activeScreen.style.top = (e.clientY - offset.y) + 'px';
+            }
+        });
+
+        document.addEventListener('mouseup', () => {
+            activeScreen = null;
+        });
+
+        function saveLayout() {
+            const allScreens = document.querySelectorAll('.screen');
+            const data = Array.from(allScreens).map(s => ({
+                id: s.id,
+                x: parseInt(s.style.left),
+                y: parseInt(s.style.top)
+            }));
+            console.log("Saving layout:", data);
+            fetch('/api/layout', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            }).then(r => alert('Saved!'));
+        }
+    </script>
+</body>
+</html>
