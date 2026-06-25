@@ -64,11 +64,12 @@ public class WorkerInputService {
         stompClient.setMessageConverter(new MappingJackson2MessageConverter());
 
         String url = "ws://" + masterHost + ":" + port + "/ws-mouse";
+        System.out.println("Attempting to connect to Master at: " + url);
         stompClient.connect(url, new StompSessionHandlerAdapter() {
             @Override
             public void afterConnected(StompSession session, StompHeaders connectedHeaders) {
                 stompSession = session;
-                System.out.println("Connected to Master at " + url);
+                System.out.println("Successfully connected to Master at " + url);
                 stompSession.subscribe("/topic/inputs", new StompFrameHandler() {
                     @Override
                     public java.lang.reflect.Type getPayloadType(StompHeaders headers) {
@@ -80,6 +81,19 @@ public class WorkerInputService {
                         handleInput((InputMessage) payload);
                     }
                 });
+            }
+            @Override
+            public void handleException(StompSession session, StompCommand command, StompHeaders headers, byte[] payload, Throwable exception) {
+                System.err.println("STOMP Error: " + exception.getMessage());
+                exception.printStackTrace();
+            }
+
+            @Override
+            public void handleTransportError(StompSession session, Throwable exception) {
+                System.err.println("Transport Error connecting to Master: " + exception.getMessage());
+                if (exception.getMessage().contains("Connection refused")) {
+                    System.err.println("HINT: Ensure the Master is running and 'mouseshare.master-host' is set to the Master's IP address (currently: " + masterHost + ")");
+                }
             }
         });
     }

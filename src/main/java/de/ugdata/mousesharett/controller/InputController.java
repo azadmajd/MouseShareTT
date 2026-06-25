@@ -11,6 +11,8 @@ import de.ugdata.mousesharett.service.WorkerRegistry;
 import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.messaging.simp.SimpMessageHeaderAccessor;
 
+import java.util.Map;
+
 @Controller
 public class InputController {
 
@@ -27,8 +29,12 @@ public class InputController {
 
     @MessageMapping("/heartbeat")
     public void receiveHeartbeat(@Payload HeartbeatMessage heartbeat, SimpMessageHeaderAccessor headerAccessor) {
-        // In a real app we'd get the IP from the session/header if needed
-        String ip = "unknown"; 
+        String ip = "unknown";
+        // Attempt to get IP from the native session
+        Map<String, Object> attrs = headerAccessor.getSessionAttributes();
+        if (attrs != null && attrs.containsKey("remoteAddress")) {
+            ip = attrs.get("remoteAddress").toString();
+        }
         workerRegistry.register(heartbeat.getId(), heartbeat.getHostname(), ip);
     }
 }
